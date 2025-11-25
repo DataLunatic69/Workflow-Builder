@@ -33,17 +33,36 @@ def render_builder_page():
     workflow = st.session_state.current_workflow
     storage = get_storage()
     
+    # Display current workflow info for debugging
+    if st.session_state.get("debug_mode", False):
+        with st.expander("🔍 Debug Info"):
+            st.write(f"Current Workflow ID: {workflow.id}")
+            st.write(f"Current Workflow Name: {workflow.name}")
+            st.write(f"Number of Nodes: {len(workflow.nodes)}")
+            if workflow.nodes:
+                st.write("Nodes:", [n.name for n in workflow.nodes])
+    
     # Top toolbar
     col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
         if st.button("➕ New Workflow"):
+            # Clear all workflow-related state
             st.session_state.current_workflow = Workflow(
                 name="Untitled Workflow",
                 description=""
             )
             st.session_state.execution_log = []
             st.session_state.selected_node_id = None
+            
+            # Clear compiled graph
+            if "compiled_graph" in st.session_state:
+                del st.session_state.compiled_graph
+            if "compiled_workflow_id" in st.session_state:
+                del st.session_state.compiled_workflow_id
+            if "recursion_limit" in st.session_state:
+                del st.session_state.recursion_limit
+            
             st.rerun()
     
     with col2:
@@ -76,42 +95,74 @@ def render_builder_page():
             if not workflow.nodes:
                 st.warning("Add at least one node to compile")
             else:
+                # Clear any previous compiled graph to ensure fresh compilation
+                if "compiled_graph" in st.session_state:
+                    del st.session_state.compiled_graph
+                if "recursion_limit" in st.session_state:
+                    del st.session_state.recursion_limit
+                
                 # Validate workflow
                 is_valid, error_msg = validate_workflow_structure(workflow)
                 if not is_valid:
                     st.error(f"Validation failed: {error_msg}")
                 else:
+                    # Store workflow ID to ensure we're compiling the right one
+                    workflow_id_before_compile = workflow.id
+                    
                     graph_builder = GraphBuilder()
                     compiled_graph, recursion_limit, error_msg = graph_builder.compile(workflow)
                     
                     if compiled_graph:
-                        st.session_state.compiled_graph = compiled_graph
-                        st.session_state.recursion_limit = recursion_limit
-                        st.success("✅ Workflow compiled successfully!")
+                        # Verify workflow hasn't changed during compilation
+                        if workflow.id == workflow_id_before_compile:
+                            st.session_state.compiled_graph = compiled_graph
+                            st.session_state.compiled_workflow_id = workflow.id  # Track which workflow is compiled
+                            st.session_state.recursion_limit = recursion_limit
+                            st.success(f"✅ Workflow '{workflow.name}' compiled successfully!")
+                        else:
+                            st.warning("Workflow changed during compilation. Please compile again.")
                     else:
                         st.error(f"Compilation failed: {error_msg}")
     
     with col5:
-        if "compiled_graph" not in st.session_state:
+        # Check if workflow is compiled and matches current workflow
+        compiled_workflow_id = st.session_state.get("compiled_workflow_id")
+        is_compiled = "compiled_graph" in st.session_state
+        is_correct_workflow = compiled_workflow_id == workflow.id if compiled_workflow_id else False
+        
+        if not is_compiled:
             st.info("Compile first")
+        elif not is_correct_workflow:
+            st.warning(f"⚠️ Compiled workflow doesn't match current workflow. Please recompile.")
+            if st.button("🔄 Clear Compiled", key="clear_compiled"):
+                if "compiled_graph" in st.session_state:
+                    del st.session_state.compiled_graph
+                if "compiled_workflow_id" in st.session_state:
+                    del st.session_state.compiled_workflow_id
+                st.rerun()
         else:
             input_text = st.text_input("Input", key="run_input", placeholder="Enter input for workflow")
             if st.button("▶️ Run Workflow", key="run_btn"):
                 if not input_text:
                     st.warning("Please enter input text")
                 else:
-                    executor = WorkflowExecutor()
-                    st.session_state.execution_log = []
-                    final_state, execution_log = executor.execute(
-                        st.session_state.compiled_graph,
-                        input_text,
-                        st.session_state.recursion_limit,
-                        execution_log=st.session_state.execution_log
-                    )
-                    st.session_state.execution_log = execution_log
-                    st.session_state.final_state = final_state
-                    st.success("Workflow execution completed!")
-                    st.rerun()
+                    # Double-check we're running the right workflow
+                    if st.session_state.get("compiled_workflow_id") != workflow.id:
+                        st.error("❌ Workflow mismatch! The compiled workflow doesn't match the current workflow. Please recompile.")
+                    else:
+                        executor = WorkflowExecutor()
+                        st.session_state.execution_log = []
+                        st.session_state.execution_log.append(f"🔧 Running workflow: {workflow.name} (ID: {workflow.id})")
+                        final_state, execution_log = executor.execute(
+                            st.session_state.compiled_graph,
+                            input_text,
+                            st.session_state.recursion_limit,
+                            execution_log=st.session_state.execution_log
+                        )
+                        st.session_state.execution_log = execution_log
+                        st.session_state.final_state = final_state
+                        st.success("Workflow execution completed!")
+                        st.rerun()
     
     st.divider()
     

@@ -57,9 +57,22 @@ def render_workflows_page():
                 if st.button("📂 Load", key=f"load_{workflow_id}"):
                     loaded = storage.load(workflow_id)
                     if loaded:
+                        # Clear any compiled graph from previous workflow
+                        if "compiled_graph" in st.session_state:
+                            del st.session_state.compiled_graph
+                        if "compiled_workflow_id" in st.session_state:
+                            del st.session_state.compiled_workflow_id
+                        if "recursion_limit" in st.session_state:
+                            del st.session_state.recursion_limit
+                        
+                        # Clear execution log
+                        st.session_state.execution_log = []
+                        
+                        # Set the new workflow
                         st.session_state.current_workflow = loaded
                         st.session_state.current_page = "builder"
-                        st.success("Workflow loaded!")
+                        st.success(f"✅ Workflow '{loaded.name}' loaded! (ID: {loaded.id})")
+                        st.info("⚠️ Remember to compile the workflow before running it.")
                         st.rerun()
                 
                 if st.button("🗑️ Delete", key=f"delete_{workflow_id}"):

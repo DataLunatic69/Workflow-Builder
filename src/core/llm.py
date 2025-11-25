@@ -33,9 +33,6 @@ class LLMManager:
             return False
         
         try:
-            # Define tools (web search for now)
-            self._tools = [{"type": "web_search_preview"}]
-            
             # Initialize base LLM
             self._llm = ChatGroq(
                 model_name=settings.llm_model_name,
@@ -43,8 +40,14 @@ class LLMManager:
                 temperature=settings.llm_temperature
             )
             
-            # Bind tools
-            self._llm_with_tools = self._llm.bind_tools(self._tools)
+            # Note: Groq API currently doesn't support tool binding in the same way as OpenAI
+            # Tools would need to be defined as proper function tools with type="function"
+            # For now, we'll use the LLM without tools
+            # If you need tools, you can create proper LangChain tools and bind them
+            self._tools = []  # Empty tools list for now
+            
+            # Use the same LLM instance (no tool binding for Groq)
+            self._llm_with_tools = self._llm
             
             self._initialized = True
             logger.info(

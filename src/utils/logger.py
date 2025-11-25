@@ -44,11 +44,20 @@ def setup_logger(name: str = "workflow_builder") -> logging.Logger:
         datefmt="%H:%M:%S"
     )
     
-    # Console handler
+    # Console handler - show WARNING and above (includes ERROR)
+    # This ensures errors are visible while still showing important info
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)
+    console_handler.setLevel(logging.WARNING)  # Show warnings and errors
     console_handler.setFormatter(simple_formatter)
     logger.addHandler(console_handler)
+    
+    # Separate handler for INFO level logs
+    info_handler = logging.StreamHandler(sys.stdout)
+    info_handler.setLevel(logging.INFO)
+    info_handler.setFormatter(simple_formatter)
+    # Only show INFO level (not WARNING/ERROR which are handled above)
+    info_handler.addFilter(lambda record: record.levelno == logging.INFO)
+    logger.addHandler(info_handler)
     
     # File handler
     try:

@@ -9,6 +9,12 @@ from src.core.llm import get_llm_manager
 from src.core.router import Router
 from src.nodes.node_factory import NodeFactory
 from src.utils.logger import get_logger
+# Checkpointer for state persistence (optional)
+# Set to None if checkpointing is not needed
+from langgraph.checkpoint.memory import MemorySaver
+
+checkpointer = MemorySaver()  # Use MemorySaver for checkpointing
+# Set to None if you don't need checkpointing: checkpointer = None
 
 logger = get_logger(__name__)
 
@@ -68,15 +74,17 @@ class GraphBuilder:
             
             for node in workflow.nodes:
                 # Collect possible routing keys for this node
+                # Only include actual routing keys, not 'error' (error is handled automatically)
                 cond_keys = {
                     rule.output_key
                     for rule in node.routing_rules.conditional_targets
-                    if rule.output_key
+                    if rule.output_key and rule.output_key != "error"
                 }
+                # Add default routing key (but not 'error' - that's implicit)
                 all_keys = cond_keys.union({
-                    self.settings.default_routing_key,
-                    "error"
+                    self.settings.default_routing_key
                 })
+                # Note: 'error' is handled automatically by the router, don't show it to LLM
                 possible_keys_per_node[node.id] = list(all_keys)
                 
                 # Create node function
@@ -100,6 +108,13 @@ class GraphBuilder:
             for node in workflow.nodes:
                 routing_map = {}
                 seen_keys = set()
+                
+                # Helper function to convert END string to END constant
+                def convert_target(target: str):
+                    """Convert 'END' string to END constant for LangGraph."""
+                    if target == self.settings.end_node_id:
+                        return END
+                    return target
                 
                 # Add conditional routing rules
                 for rule in node.routing_rules.conditional_targets:
@@ -128,7 +143,8 @@ class GraphBuilder:
                             f"Duplicate routing key '{key}' in node '{node.name}'"
                         )
                     
-                    routing_map[key] = target_id
+                    # Convert END string to END constant
+                    routing_map[key] = convert_target(target_id)
                     seen_keys.add(key)
                     logger.debug(
                         f"  Routing rule: '{key}' -> {target_id}"
@@ -145,14 +161,15 @@ class GraphBuilder:
                         logger.error(error_msg)
                         all_targets_valid = False
                     else:
-                        routing_map[self.settings.default_routing_key] = default_target
+                        # Convert END string to END constant
+                        routing_map[self.settings.default_routing_key] = convert_target(default_target)
                         logger.debug(
                             f"  Default routing -> {default_target}"
                         )
                 
                 # Add error routing (implicit)
                 if "error" not in routing_map:
-                    routing_map["error"] = self.settings.end_node_id
+                    routing_map["error"] = END  # Always use END constant for error routing
                 
                 # Add conditional edges if valid
                 if all_targets_valid:
@@ -168,7 +185,7 @@ class GraphBuilder:
                 return None, None, error_msg
             
             # Compile graph
-            compiled_graph = graph_builder.compile(checkpointer=None)
+            compiled_graph = graph_builder.compile(checkpointer=checkpointer)
             
             # Calculate recursion limit
             recursion_limit = (

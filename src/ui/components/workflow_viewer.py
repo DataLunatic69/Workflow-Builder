@@ -112,10 +112,18 @@ def render_workflow_graph(workflow: Workflow, selected_node_id: Optional[str] = 
                 )
     
     # Add END node if referenced
-    has_end = any(
-        edge.target == settings.end_node_id
-        for edge in agraph_edges
-    )
+    # Check if any node routes to END by examining the workflow nodes
+    has_end = False
+    for node in workflow.nodes:
+        if node.routing_rules.default_target == settings.end_node_id:
+            has_end = True
+            break
+        for rule in node.routing_rules.conditional_targets:
+            if rule.target_node_id == settings.end_node_id:
+                has_end = True
+                break
+        if has_end:
+            break
     
     if has_end:
         agraph_nodes.append(

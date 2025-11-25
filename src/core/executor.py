@@ -53,13 +53,52 @@ class WorkflowExecutor:
         
         try:
             # Execute graph
+            # Generate a unique thread_id for this execution
+            import uuid
+            thread_id = str(uuid.uuid4())
+            
+            # Configure execution with thread_id (required if using checkpointer)
+            # and recursion_limit
+            config = {
+                "recursion_limit": recursion_limit,
+                "configurable": {
+                    "thread_id": thread_id
+                }
+            }
+            
             final_state = compiled_graph.invoke(
                 initial_state,
-                config={"recursion_limit": recursion_limit}
+                config=config
             )
             
-            logger.info("Workflow execution completed successfully")
-            execution_log.append(f"✅ Workflow execution completed")
+            # Check if execution ended in error state
+            last_response = final_state.get("last_response_content", "")
+            node_outputs = final_state.get("node_outputs", {})
+            
+            # Check for errors in node outputs or final response
+            has_error = False
+            error_details = []
+            
+            if "ERROR" in last_response.upper():
+                has_error = True
+                error_details.append(f"Final state error: {last_response}")
+            
+            for node_id, output in node_outputs.items():
+                if "ERROR" in str(output).upper():
+                    has_error = True
+                    error_details.append(f"Node {node_id} error: {output[:200]}")
+            
+            if has_error:
+                logger.error(f"Workflow execution completed with errors: {error_details}")
+                execution_log.append(f"❌ Workflow execution completed with errors")
+                for detail in error_details:
+                    execution_log.append(f"  ⚠️ {detail[:300]}")
+            else:
+                logger.info("Workflow execution completed successfully")
+                execution_log.append(f"✅ Workflow execution completed")
+                # Show final output
+                if last_response and "ERROR" not in last_response.upper():
+                    execution_log.append(f"📤 Final output: {last_response[:500]}...")
             
             return final_state, execution_log
             

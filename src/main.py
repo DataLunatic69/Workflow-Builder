@@ -1,8 +1,25 @@
 """Main Streamlit application entry point."""
 
+import sys
+import os
+from pathlib import Path
+
+# Add project root to Python path
+# Get the directory containing this file (src/)
+current_dir = Path(__file__).resolve().parent
+# Get the project root (parent of src/)
+project_root = current_dir.parent
+# Add to Python path if not already there
+project_root_str = str(project_root)
+if project_root_str not in sys.path:
+    sys.path.insert(0, project_root_str)
+
 import streamlit as st
-from config.settings import get_settings
-from src.core.llm import get_llm_manager
+from src.ui.components.sidebar import render_sidebar
+from src.ui.pages.builder import render_builder_page
+from src.ui.pages.templates import render_templates_page
+from src.ui.pages.workflows import render_workflows_page
+from src.ui.pages.settings import render_settings_page
 from src.utils.logger import setup_logger
 
 # Set up logging
@@ -16,92 +33,31 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Initialize settings
-settings = get_settings()
+# Initialize session state
+if "current_page" not in st.session_state:
+    st.session_state.current_page = "builder"
 
-# Initialize LLM manager
-llm_manager = get_llm_manager()
+# Render sidebar
+render_sidebar()
 
-# Main title
-st.title("🔧 Workflow Builder")
-st.markdown("AI-powered workflow automation tool")
+# Main content area - route to appropriate page
+current_page = st.session_state.current_page
 
-# Sidebar
-with st.sidebar:
-    st.header("⚙️ Configuration")
-    
-    # API Key status
-    if settings.is_openai_configured:
-        st.success("✅ OpenAI API Key configured")
-    else:
-        st.error("❌ OpenAI API Key not configured")
-        st.info("Please set OPENAI_API_KEY in your .env file")
-    
-    # LLM Status
-    if llm_manager.is_initialized:
-        st.success("✅ LLM initialized")
-    else:
-        st.warning("⚠️ LLM not initialized")
-        if st.button("Initialize LLM"):
-            if llm_manager.initialize():
-                st.success("LLM initialized successfully!")
-                st.rerun()
-            else:
-                st.error("Failed to initialize LLM")
-    
-    st.divider()
-    st.markdown("### Navigation")
-    st.info("🚧 UI components coming in Phase 4")
-
-# Main content
-st.markdown("""
-## Welcome to Workflow Builder!
-
-This is a refactored version of the workflow builder with improved architecture.
-
-### Current Status
-
-✅ **Phase 1 Complete**: Foundation & Refactoring
-- Project structure
-- Configuration management
-- Data models
-- Logging system
-- Helper utilities
-
-✅ **Phase 2 Complete**: Core Engine Refactoring
-- LLM management
-- Graph builder
-- Router
-- Executor
-- Node system
-
-🚧 **Phase 3**: Storage & Persistence (Next)
-🚧 **Phase 4**: UI Enhancement (Next)
-🚧 **Phase 5**: Testing & QA (Next)
-🚧 **Phase 6**: Documentation & Polish (Next)
-
-### Getting Started
-
-1. Make sure your `.env` file is configured with `OPENAI_API_KEY`
-2. Initialize the LLM using the sidebar button
-3. UI components will be available in Phase 4
-
-### Architecture
-
-The application is now structured with:
-- **Models**: Data structures (Workflow, Node, State)
-- **Core**: Engine components (LLM, Graph Builder, Router, Executor)
-- **Nodes**: Node implementations (Agent Node, Base Node)
-- **Utils**: Helper functions and validators
-- **Config**: Configuration management
-
-See `plan.md` for detailed implementation plan.
-""")
+if current_page == "builder":
+    render_builder_page()
+elif current_page == "templates":
+    render_templates_page()
+elif current_page == "workflows":
+    render_workflows_page()
+elif current_page == "settings":
+    render_settings_page()
+else:
+    render_builder_page()
 
 # Footer
 st.divider()
 st.markdown(
-    "<small>Workflow Builder v0.1.0 | Built with Streamlit, LangGraph, and OpenAI</small>",
+    "<small>Workflow Builder v0.1.0 | Built with Streamlit, LangGraph, and Groq</small>",
     unsafe_allow_html=True
 )
 

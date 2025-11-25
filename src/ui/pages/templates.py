@@ -42,9 +42,22 @@ def render_templates_page():
                         loaded_workflow.id = generate_node_id()
                         loaded_workflow.name = f"{loaded_workflow.name} (Copy)"
                         
+                        # Clear any compiled graph from previous workflow
+                        if "compiled_graph" in st.session_state:
+                            del st.session_state.compiled_graph
+                        if "compiled_workflow_id" in st.session_state:
+                            del st.session_state.compiled_workflow_id
+                        if "recursion_limit" in st.session_state:
+                            del st.session_state.recursion_limit
+                        
+                        # Clear execution log
+                        st.session_state.execution_log = []
+                        
+                        # Set the new workflow
                         st.session_state.current_workflow = loaded_workflow
                         st.session_state.current_page = "builder"
-                        st.success(f"Template '{template['name']}' loaded!")
+                        st.success(f"✅ Template '{template['name']}' loaded! (ID: {loaded_workflow.id})")
+                        st.info("⚠️ Remember to compile the workflow before running it.")
                         st.rerun()
                     else:
                         st.error("Failed to load template")
