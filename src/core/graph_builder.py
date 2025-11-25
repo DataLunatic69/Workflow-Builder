@@ -42,7 +42,7 @@ class GraphBuilder:
         # Check LLM initialization
         llm_manager = get_llm_manager()
         if not llm_manager.is_initialized:
-            error_msg = "LLM not initialized. Please configure OPENAI_API_KEY."
+            error_msg = "LLM not initialized. Please configure GROQ_API_KEY."
             logger.error(error_msg)
             return None, None, error_msg
         

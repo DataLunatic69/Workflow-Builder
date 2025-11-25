@@ -1,7 +1,7 @@
 """LLM management for Workflow Builder."""
 
 from typing import Optional, List, Dict, Any
-from langchain_openai import ChatOpenAI
+from langchain_groq import ChatGroq
 from langchain_core.tools import BaseTool
 from config.settings import get_settings
 from src.utils.logger import get_logger
@@ -14,7 +14,7 @@ class LLMManager:
     
     def __init__(self):
         """Initialize LLM manager."""
-        self._llm: Optional[ChatOpenAI] = None
+        self._llm: Optional[ChatGroq] = None
         self._llm_with_tools: Optional[Any] = None
         self._tools: List[Dict[str, Any]] = []
         self._initialized = False
@@ -28,8 +28,8 @@ class LLMManager:
         """
         settings = get_settings()
         
-        if not settings.is_openai_configured:
-            logger.error("OpenAI API key not configured")
+        if not settings.is_groq_configured:
+            logger.error("Groq API key not configured")
             return False
         
         try:
@@ -37,9 +37,9 @@ class LLMManager:
             self._tools = [{"type": "web_search_preview"}]
             
             # Initialize base LLM
-            self._llm = ChatOpenAI(
+            self._llm = ChatGroq(
                 model_name=settings.llm_model_name,
-                openai_api_key=settings.openai_api_key,
+                groq_api_key=settings.groq_api_key,
                 temperature=settings.llm_temperature
             )
             
@@ -70,17 +70,17 @@ class LLMManager:
         settings = get_settings()
         
         # Check if API key changed
-        current_key = getattr(self._llm, 'openai_api_key', None) if self._llm else None
-        if current_key != settings.openai_api_key:
+        current_key = getattr(self._llm, 'groq_api_key', None) if self._llm else None
+        if current_key != settings.groq_api_key:
             logger.info("API key changed, reinitializing LLM")
             return self.initialize()
         
         # Check if not initialized but should be
-        if not self._initialized and settings.is_openai_configured:
+        if not self._initialized and settings.is_groq_configured:
             return self.initialize()
         
         # Check if initialized but shouldn't be
-        if self._initialized and not settings.is_openai_configured:
+        if self._initialized and not settings.is_groq_configured:
             logger.info("API key removed, clearing LLM")
             self._llm = None
             self._llm_with_tools = None
@@ -90,7 +90,7 @@ class LLMManager:
         return self._initialized
     
     @property
-    def llm(self) -> Optional[ChatOpenAI]:
+    def llm(self) -> Optional[ChatGroq]:
         """Get the base LLM instance."""
         if not self._initialized:
             self.reinitialize_if_needed()
