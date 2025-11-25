@@ -3,6 +3,17 @@
 import streamlit as st
 from src.storage import get_template_loader
 from src.storage import get_storage
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
+
+
+def _clear_compilation_state():
+    """Helper to clear compiled graph state."""
+    keys_to_clear = ["compiled_graph", "compiled_workflow_id", "compiled_workflow_name", "recursion_limit", "final_state"]
+    for key in keys_to_clear:
+        if key in st.session_state:
+            del st.session_state[key]
 
 
 def render_templates_page():
@@ -37,26 +48,24 @@ def render_templates_page():
                 if st.button(f"📥 Load Template", key=f"load_{template['id']}"):
                     loaded_workflow = template_loader.load_template(template['id'])
                     if loaded_workflow:
+                        logger.info(f"Loading template: {template['name']} (ID: {template['id']})")
+                        
                         # Generate new ID for the loaded workflow
                         from src.utils.helpers import generate_node_id
                         loaded_workflow.id = generate_node_id()
                         loaded_workflow.name = f"{loaded_workflow.name} (Copy)"
                         
-                        # Clear any compiled graph from previous workflow
-                        if "compiled_graph" in st.session_state:
-                            del st.session_state.compiled_graph
-                        if "compiled_workflow_id" in st.session_state:
-                            del st.session_state.compiled_workflow_id
-                        if "recursion_limit" in st.session_state:
-                            del st.session_state.recursion_limit
-                        
-                        # Clear execution log
+                        # CRITICAL: Clear ALL compilation state BEFORE setting new workflow
+                        _clear_compilation_state()
                         st.session_state.execution_log = []
+                        st.session_state.selected_node_id = None
                         
-                        # Set the new workflow
+                        # Set the new workflow AFTER clearing state
                         st.session_state.current_workflow = loaded_workflow
                         st.session_state.current_page = "builder"
-                        st.success(f"✅ Template '{template['name']}' loaded! (ID: {loaded_workflow.id})")
+                        
+                        logger.info(f"Template loaded into session: {loaded_workflow.name} (ID: {loaded_workflow.id})")
+                        st.success(f"✅ Template '{template['name']}' loaded! (ID: {loaded_workflow.id[:8]}...)")
                         st.info("⚠️ Remember to compile the workflow before running it.")
                         st.rerun()
                     else:

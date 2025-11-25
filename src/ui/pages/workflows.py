@@ -3,6 +3,17 @@
 import streamlit as st
 from src.storage import get_storage
 from datetime import datetime
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
+
+
+def _clear_compilation_state():
+    """Helper to clear compiled graph state."""
+    keys_to_clear = ["compiled_graph", "compiled_workflow_id", "compiled_workflow_name", "recursion_limit", "final_state"]
+    for key in keys_to_clear:
+        if key in st.session_state:
+            del st.session_state[key]
 
 
 def render_workflows_page():
@@ -57,21 +68,19 @@ def render_workflows_page():
                 if st.button("📂 Load", key=f"load_{workflow_id}"):
                     loaded = storage.load(workflow_id)
                     if loaded:
-                        # Clear any compiled graph from previous workflow
-                        if "compiled_graph" in st.session_state:
-                            del st.session_state.compiled_graph
-                        if "compiled_workflow_id" in st.session_state:
-                            del st.session_state.compiled_workflow_id
-                        if "recursion_limit" in st.session_state:
-                            del st.session_state.recursion_limit
+                        logger.info(f"Loading saved workflow: {loaded.name} (ID: {workflow_id})")
                         
-                        # Clear execution log
+                        # CRITICAL: Clear ALL compilation state BEFORE setting new workflow
+                        _clear_compilation_state()
                         st.session_state.execution_log = []
+                        st.session_state.selected_node_id = None
                         
-                        # Set the new workflow
+                        # Set the new workflow AFTER clearing state
                         st.session_state.current_workflow = loaded
                         st.session_state.current_page = "builder"
-                        st.success(f"✅ Workflow '{loaded.name}' loaded! (ID: {loaded.id})")
+                        
+                        logger.info(f"Saved workflow loaded into session: {loaded.name} (ID: {loaded.id})")
+                        st.success(f"✅ Workflow '{loaded.name}' loaded! (ID: {loaded.id[:8]}...)")
                         st.info("⚠️ Remember to compile the workflow before running it.")
                         st.rerun()
                 

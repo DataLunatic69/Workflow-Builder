@@ -4,7 +4,6 @@ from typing import Dict, List, Optional, Any
 from langgraph.graph import StateGraph
 from config.settings import get_settings
 from src.models.state import WorkflowState
-from src.models.workflow import Workflow
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -53,12 +52,9 @@ class WorkflowExecutor:
         
         try:
             # Execute graph
-            # Generate a unique thread_id for this execution
             import uuid
             thread_id = str(uuid.uuid4())
             
-            # Configure execution with thread_id (required if using checkpointer)
-            # and recursion_limit
             config = {
                 "recursion_limit": recursion_limit,
                 "configurable": {
@@ -79,12 +75,14 @@ class WorkflowExecutor:
             has_error = False
             error_details = []
             
-            if "ERROR" in last_response.upper():
+            # FIX: Only detect errors if the string explicitly STARTS with "ERROR:"
+            # This prevents false positives when the LLM writes about "errors" in normal text
+            if str(last_response).strip().upper().startswith("ERROR:"):
                 has_error = True
                 error_details.append(f"Final state error: {last_response}")
             
             for node_id, output in node_outputs.items():
-                if "ERROR" in str(output).upper():
+                if str(output).strip().upper().startswith("ERROR:"):
                     has_error = True
                     error_details.append(f"Node {node_id} error: {output[:200]}")
             
@@ -97,7 +95,7 @@ class WorkflowExecutor:
                 logger.info("Workflow execution completed successfully")
                 execution_log.append(f"✅ Workflow execution completed")
                 # Show final output
-                if last_response and "ERROR" not in last_response.upper():
+                if last_response and not str(last_response).strip().upper().startswith("ERROR:"):
                     execution_log.append(f"📤 Final output: {last_response[:500]}...")
             
             return final_state, execution_log
@@ -128,12 +126,12 @@ class WorkflowExecutor:
             Dictionary with execution summary
         """
         node_outputs = final_state.get("node_outputs", {})
+        last_response = final_state.get("last_response_content", "")
         
         return {
             "nodes_executed": len(node_outputs),
             "node_outputs": node_outputs,
-            "final_output": final_state.get("last_response_content", ""),
+            "final_output": last_response,
             "current_node": final_state.get("current_node_id", ""),
-            "has_error": "ERROR" in final_state.get("last_response_content", "")
+            "has_error": str(last_response).strip().upper().startswith("ERROR:")
         }
-
