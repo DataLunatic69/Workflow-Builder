@@ -86,36 +86,9 @@ Configuration is managed through environment variables (see `.env.example`) and 
 - `WORKFLOW_STORAGE_PATH`: Where to store workflows (default: `./workflows`)
 - `LOG_LEVEL`: Logging level (default: `INFO`)
 
-## Development
 
-### Running Tests
 
-```bash
-pytest tests/
-```
 
-### Code Formatting
-
-```bash
-black src/ tests/
-isort src/ tests/
-```
-
-### Type Checking
-
-```bash
-mypy src/
-```
-
-### Linting
-
-```bash
-pylint src/
-```
-
-## Architecture
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture documentation.
 
 ## License
 
