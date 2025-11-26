@@ -37,6 +37,16 @@ def render_builder_page():
     workflow = st.session_state.current_workflow
     storage = get_storage()
     
+    # Show workflow status banner
+    compiled_workflow_id = st.session_state.get("compiled_workflow_id")
+    is_compiled = "compiled_graph" in st.session_state and compiled_workflow_id == workflow.id
+    
+    if workflow.nodes:
+        if is_compiled:
+            st.success(f"✅ **Current Workflow:** {workflow.name} ({len(workflow.nodes)} nodes) - **Compiled and ready to run!**")
+        else:
+            st.info(f"📋 **Current Workflow:** {workflow.name} ({len(workflow.nodes)} nodes) - ⚠️ **Not compiled**. Click '🔨 Compile Workflow' button to compile.")
+    
     # Debug: Show current workflow info (can be removed later)
     if st.session_state.get("debug_mode", False):
         with st.expander("🔍 Debug Info"):
@@ -124,7 +134,13 @@ def render_builder_page():
                         st.rerun()
     
     with col4:
-        if st.button("🔨 Compile Workflow"):
+        # CRITICAL: Ensure we stay on builder page when compiling
+        st.session_state.current_page = "builder"
+        
+        if st.button("🔨 Compile Workflow", key="compile_workflow_btn"):
+            # Ensure we stay on builder page
+            st.session_state.current_page = "builder"
+            
             if not workflow.nodes:
                 st.warning("Add at least one node to compile")
             else:
@@ -153,8 +169,11 @@ def render_builder_page():
                             st.session_state.compiled_workflow_id = workflow.id
                             st.session_state.compiled_workflow_name = workflow.name  # Store name too
                             st.session_state.recursion_limit = recursion_limit
+                            # Ensure we stay on builder page after compilation
+                            st.session_state.current_page = "builder"
                             logger.info(f"Successfully compiled: {workflow.name} (ID: {workflow.id})")
                             st.success(f"✅ Workflow '{workflow.name}' compiled successfully!")
+                            st.rerun()  # Refresh UI to show input box
                         else:
                             logger.warning(
                                 f"Workflow changed during compilation! "
@@ -178,8 +197,10 @@ def render_builder_page():
         is_compiled = "compiled_graph" in st.session_state
         is_correct_workflow = compiled_workflow_id == workflow.id if compiled_workflow_id else False
         
-        if not is_compiled:
-            st.info("⚠️ Compile workflow first")
+        if not workflow.nodes:
+            st.info("📝 Add nodes first")
+        elif not is_compiled:
+            st.info("⚠️ **Compile workflow first**\n\nClick '🔨 Compile Workflow' button above.")
         elif not is_correct_workflow:
             st.error(
                 f"❌ **Workflow Mismatch!**\n\n"
@@ -191,10 +212,17 @@ def render_builder_page():
                 _clear_compilation_state()
                 st.rerun()
         else:
-            input_text = st.text_input("Input", key="run_input", placeholder="Input text...", label_visibility="collapsed")
-            if st.button("▶️ Run", key="run_btn"):
-                if not input_text:
-                    st.warning("Enter input text")
+            # Workflow is compiled and matches - show run interface
+            st.success("✅ **Ready to run!**")
+            input_text = st.text_input(
+                "Input", 
+                key="run_input", 
+                placeholder="Enter your input text here...", 
+                label_visibility="visible"
+            )
+            if st.button("▶️ Run Workflow", key="run_btn", use_container_width=True):
+                if not input_text or not input_text.strip():
+                    st.warning("⚠️ Please enter input text")
                 else:
                     # CRITICAL: Double-check we're running the right workflow
                     if st.session_state.get("compiled_workflow_id") != workflow.id:
